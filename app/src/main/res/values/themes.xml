@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- BEA App Theme – dunkler Hintergrund damit kein weißer Flash beim Start -->
+    <style name="Theme.BEA" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/bea_background</item>
+        <item name="android:statusBarColor">#FF0F0F1A</item>
+        <item name="android:navigationBarColor">#FF0F0F1A</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
