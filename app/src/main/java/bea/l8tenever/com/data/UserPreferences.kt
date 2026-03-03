@@ -29,6 +29,14 @@ object PrefsKeys {
     val ONE_TIME_TEMPLATE = stringPreferencesKey("one_time_template") // JSON von OneTimeTemplate?
     val WAS_LIVE_NOTIFICATION_BEFORE_DISABLE = stringPreferencesKey("was_live_notification_before_disable") // "true"/"false"
 
+    // Sleep Tracker Einstellungen
+    val SLEEP_ENABLED = stringPreferencesKey("sleep_enabled") // "true"/"false"
+    val SLEEP_HOURS = stringPreferencesKey("sleep_hours") // "8.0"
+    val SLEEP_FULLSCREEN = stringPreferencesKey("sleep_fullscreen") // "true"/"false"
+    val SLEEP_VIBRATE_ONLY = stringPreferencesKey("sleep_vibrate_only") // "true"/"false"
+    val SLEEP_AUTO_DISMISS_MINUTES = intPreferencesKey("sleep_auto_dismiss_minutes") // 30
+    val SLEEP_WAS_ENABLED_BEFORE_DISABLE = stringPreferencesKey("sleep_was_enabled_before_disable") // "true"/"false"
+
     // Schulmodus-Einstellungen
     val AUTO_DND_ENABLED = stringPreferencesKey("auto_dnd_enabled") // "true"/"false"
     val AUTO_VOLUME_ENABLED = stringPreferencesKey("auto_volume_enabled") // "true"/"false"
@@ -115,6 +123,18 @@ class UserPreferences(private val context: Context) {
     }
     val useDynamicColors: Flow<Boolean> = context.dataStore.data.map {
         it[PrefsKeys.USE_DYNAMIC_COLORS] != "false"
+    }
+
+    val sleepSettings: Flow<SleepSettings> = context.dataStore.data.map {
+        SleepSettings(
+            isEnabled = it[PrefsKeys.SLEEP_ENABLED] != "false",
+            desiredSleepHours = it[PrefsKeys.SLEEP_HOURS]?.toFloatOrNull() ?: 8.0f,
+            showFullscreenReminder = it[PrefsKeys.SLEEP_FULLSCREEN] != "false",
+            vibrateOnly = it[PrefsKeys.SLEEP_VIBRATE_ONLY] == "true",
+            autoDismissMinutes = it[PrefsKeys.SLEEP_AUTO_DISMISS_MINUTES] ?: 30,
+            wasEnabledBeforeMainAlarmDisable =
+                if (it[PrefsKeys.SLEEP_WAS_ENABLED_BEFORE_DISABLE] == "true") true else null
+        )
     }
 
     suspend fun saveCredentials(credentials: LoginCredentials) {
@@ -218,6 +238,18 @@ class UserPreferences(private val context: Context) {
     suspend fun saveWasLiveNotificationEnabledBeforeDisable(enabled: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[PrefsKeys.WAS_LIVE_NOTIFICATION_BEFORE_DISABLE] = if (enabled) "true" else "false"
+        }
+    }
+
+    suspend fun saveSleepSettings(settings: SleepSettings) {
+        context.dataStore.edit { prefs ->
+            prefs[PrefsKeys.SLEEP_ENABLED] = if (settings.isEnabled) "true" else "false"
+            prefs[PrefsKeys.SLEEP_HOURS] = settings.desiredSleepHours.toString()
+            prefs[PrefsKeys.SLEEP_FULLSCREEN] = if (settings.showFullscreenReminder) "true" else "false"
+            prefs[PrefsKeys.SLEEP_VIBRATE_ONLY] = if (settings.vibrateOnly) "true" else "false"
+            prefs[PrefsKeys.SLEEP_AUTO_DISMISS_MINUTES] = settings.autoDismissMinutes
+            prefs[PrefsKeys.SLEEP_WAS_ENABLED_BEFORE_DISABLE] =
+                if (settings.wasEnabledBeforeMainAlarmDisable == true) "true" else "false"
         }
     }
 

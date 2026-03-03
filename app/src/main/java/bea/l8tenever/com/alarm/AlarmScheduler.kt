@@ -25,6 +25,7 @@ object AlarmScheduler {
 
     private const val TAG = "AlarmScheduler"
     private const val ALARM_REQUEST_CODE = 1001
+    private const val BEDTIME_ALARM_REQUEST_CODE = 3000
 
     /**
      * Berechnet den nächsten Wecktermin.
@@ -257,6 +258,97 @@ object AlarmScheduler {
         }
     }
 
+    fun scheduleBedtimeAlarm(
+        context: Context,
+        mainAlarmTime: LocalDateTime?,
+        sleepSettings: bea.l8tenever.com.data.SleepSettings
+    ) {
+        cancelBedtimeAlarm(context)
+
+        if (!sleepSettings.isEnabled || mainAlarmTime == null) {
+            Log.d(TAG, "Bedtime alarm disabled or no main alarm scheduled")
+            return
+        }
+
+        // Calculate bedtime (X hours before main alarm)
+        val sleepHoursLong = (sleepSettings.desiredSleepHours * 60).toLong()
+        val bedtimeAlarm = mainAlarmTime.minusMinutes(sleepHoursLong)
+        val now = LocalDateTime.now()
+
+        // Only schedule if bedtime is in the future and within 24 hours
+        if (!bedtimeAlarm.isAfter(now)) {
+            Log.d(TAG, "Bedtime already passed: $bedtimeAlarm")
+            return
+        }
+
+        val hoursToBedtime = java.time.Duration.between(now, bedtimeAlarm).toHours()
+        if (hoursToBedtime > 24) {
+            Log.d(TAG, "Bedtime too far in future (${hoursToBedtime}h), skipping")
+            return
+        }
+
+        // Schedule the bedtime alarm
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(context, BedtimeAlarmReceiver::class.java).apply {
+            putExtra("main_alarm_time", mainAlarmTime.toString())
+            putExtra("sleep_hours", sleepSettings.desiredSleepHours)
+            putExtra("fullscreen_enabled", sleepSettings.showFullscreenReminder)
+            putExtra("vibrate_only", sleepSettings.vibrateOnly)
+            putExtra("auto_dismiss_minutes", sleepSettings.autoDismissMinutes)
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            BEDTIME_ALARM_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val triggerMillis = bedtimeAlarm
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+
+        val showIntent = Intent(context, bea.l8tenever.com.MainActivity::class.java)
+        val showPendingIntent = PendingIntent.getActivity(
+            context, BEDTIME_ALARM_REQUEST_CODE, showIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val alarmClockInfo = AlarmManager.AlarmClockInfo(triggerMillis, showPendingIntent)
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setAlarmClock(alarmClockInfo, pendingIntent)
+                } else {
+                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pendingIntent)
+                }
+            } else {
+                alarmManager.setAlarmClock(alarmClockInfo, pendingIntent)
+            }
+            Log.d(TAG, "Bedtime alarm scheduled for: $bedtimeAlarm")
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Keine Berechtigung für exakte Alarme (Bedtime)", e)
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pendingIntent)
+        }
+    }
+
+    fun cancelBedtimeAlarm(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(context, BedtimeAlarmReceiver::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            BEDTIME_ALARM_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+        )
+        pendingIntent?.let {
+            alarmManager.cancel(it)
+            it.cancel()
+        }
+        Log.d(TAG, "Bedtime alarm cancelled")
+    }
+
     fun cancelAlarm(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, AlarmReceiver::class.java)
@@ -286,7 +378,10 @@ object AlarmScheduler {
                 it.cancel()
             }
         }
-        
+
+        // Bedtime-Alarm abbrechen
+        cancelBedtimeAlarm(context)
+
         Log.d(TAG, "Alarme abgebrochen.")
     }
 

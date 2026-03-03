@@ -50,6 +50,7 @@ data class AppUiState(
     val personId: Int = 0,
     val liveNotificationEnabled: Boolean = false,
     val wasLiveNotificationEnabledBeforeDisable: Boolean = false,
+    val sleepSettings: bea.l8tenever.com.data.SleepSettings = bea.l8tenever.com.data.SleepSettings(),
     // Schulmodus-Einstellungen
     val autoDndEnabled: Boolean = false,
     val autoVolumeEnabled: Boolean = false,
@@ -125,6 +126,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val liveEnabled = p[stringPreferencesKey("live_notification_enabled")] == "true"
             val wasLiveEnabledBeforeDisable = p[PrefsKeys.WAS_LIVE_NOTIFICATION_BEFORE_DISABLE] == "true"
 
+            // Sleep Tracker laden
+            val sleepEn = p[PrefsKeys.SLEEP_ENABLED] != "false"
+            val sleepHours = p[PrefsKeys.SLEEP_HOURS]?.toFloatOrNull() ?: 8.0f
+            val sleepFullscreen = p[PrefsKeys.SLEEP_FULLSCREEN] != "false"
+            val sleepVibrate = p[PrefsKeys.SLEEP_VIBRATE_ONLY] == "true"
+            val sleepAutoDismiss = p[PrefsKeys.SLEEP_AUTO_DISMISS_MINUTES] ?: 30
+            val sleepSettings = bea.l8tenever.com.data.SleepSettings(
+                isEnabled = sleepEn,
+                desiredSleepHours = sleepHours,
+                showFullscreenReminder = sleepFullscreen,
+                vibrateOnly = sleepVibrate,
+                autoDismissMinutes = sleepAutoDismiss
+            )
+
             // Schulmodus-Einstellungen laden
             val autoDndEnabled = p[PrefsKeys.AUTO_DND_ENABLED] != "false"
             val autoVolumeEnabled = p[PrefsKeys.AUTO_VOLUME_ENABLED] != "false"
@@ -161,6 +176,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     isLoggedIn   = false,
                     liveNotificationEnabled = liveEnabled,
                     wasLiveNotificationEnabledBeforeDisable = wasLiveEnabledBeforeDisable,
+                    sleepSettings = sleepSettings,
                     autoDndEnabled = autoDndEnabled,
                     autoVolumeEnabled = autoVolumeEnabled,
                     autoVolumeRing = autoVolumeRing,
@@ -409,6 +425,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             context.dataStore.edit { it[stringPreferencesKey("live_notification_enabled")] = if (enabled) "true" else "false" }
             _state.update { it.copy(liveNotificationEnabled = enabled) }
             bea.l8tenever.com.worker.LiveStundeWorker.schedule(context, enabled)
+        }
+    }
+
+    fun updateSleepSettings(settings: bea.l8tenever.com.data.SleepSettings) {
+        viewModelScope.launch {
+            prefs.saveSleepSettings(settings)
+            _state.update { it.copy(sleepSettings = settings) }
+            scheduleAlarm(_state.value)
         }
     }
 

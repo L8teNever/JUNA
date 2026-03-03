@@ -54,6 +54,14 @@
             android:theme="@style/Theme.BEA"
             android:exported="false" />
 
+        <!-- Activity: Sleep-Reminder Erinnerung -->
+        <activity
+            android:name=".alarm.SleepReminderActivity"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.BEA"
+            android:exported="false" />
+
         <!-- BroadcastReceiver: Alarm auslösen -->
         <receiver
             android:name=".alarm.AlarmReceiver"
@@ -67,6 +75,16 @@
         <!-- BroadcastReceiver: Live-Notification neu anzeigen wenn weggewischt -->
         <receiver
             android:name=".worker.NotificationDismissReceiver"
+            android:exported="false" />
+
+        <!-- BroadcastReceiver: Sleep-Reminder Wecker -->
+        <receiver
+            android:name=".alarm.BedtimeAlarmReceiver"
+            android:exported="false" />
+
+        <!-- BroadcastReceiver: Sleep-Reminder dimissed -->
+        <receiver
+            android:name=".alarm.SleepReminderDismissReceiver"
             android:exported="false" />
 
         <!-- BroadcastReceiver: Nach Neustart Alarm neu setzen -->
