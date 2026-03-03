@@ -42,6 +42,11 @@ fun SettingsScreen(
     var autoVolumeNotification by remember(state.autoVolumeNotification) { mutableStateOf(state.autoVolumeNotification) }
     var autoVolumeMedia by remember(state.autoVolumeMedia) { mutableStateOf(state.autoVolumeMedia) }
     var dndPauseBehavior by remember(state.dndPauseBehavior) { mutableStateOf(state.dndPauseBehavior) }
+    var sleepEnabled by remember(state.sleepSettings.isEnabled) { mutableStateOf(state.sleepSettings.isEnabled) }
+    var sleepHours by remember(state.sleepSettings.desiredSleepHours) { mutableFloatStateOf(state.sleepSettings.desiredSleepHours) }
+    var sleepFullscreen by remember(state.sleepSettings.showFullscreenReminder) { mutableStateOf(state.sleepSettings.showFullscreenReminder) }
+    var sleepVibrateOnly by remember(state.sleepSettings.vibrateOnly) { mutableStateOf(state.sleepSettings.vibrateOnly) }
+    var sleepAutoDismiss by remember(state.sleepSettings.autoDismissMinutes) { mutableStateOf(state.sleepSettings.autoDismissMinutes) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
     // Berechtigungs-Status live prÃ¼fen
@@ -489,6 +494,237 @@ fun SettingsScreen(
                         showTemplateDialog = false
                     }
                 )
+            }
+
+            // --- SCHLAF-TRACKER ---
+            SettingsSectionHeader("Schlaf-Tracker", Icons.Outlined.NightsStay)
+
+            SettingsFeatureCard {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF3B2577).copy(alpha = 0.3f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Outlined.NightsStay, null, tint = Color(0xFFD3BAFF))
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Schlaf-Erinnerung",
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                fontSize = 16.sp
+                            )
+                            Text(
+                                "Erinnert dich rechtzeitig ins Bett",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 12.sp
+                            )
+                        }
+                        Switch(
+                            checked = sleepEnabled,
+                            onCheckedChange = {
+                                sleepEnabled = it
+                                val newSettings = state.sleepSettings.copy(isEnabled = it)
+                                viewModel.updateSleepSettings(newSettings)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFFD3BAFF),
+                                checkedTrackColor = Color(0xFF533F85).copy(alpha = 0.6f),
+                                uncheckedThumbColor = Color.LightGray,
+                                uncheckedTrackColor = Color.DarkGray
+                            ),
+                            modifier = Modifier.scale(0.85f)
+                        )
+                    }
+
+                    AnimatedVisibility(visible = sleepEnabled) {
+                        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Sleep hours slider
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Gewünschte Schlafdauer",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFF3B2577))
+                                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = "%.1f h".format(sleepHours),
+                                        color = Color(0xFFD3BAFF),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Slider(
+                                value = sleepHours,
+                                onValueChange = {
+                                    sleepHours = kotlin.math.round(it * 2) / 2f
+                                },
+                                onValueChangeFinished = {
+                                    val newSettings = state.sleepSettings.copy(desiredSleepHours = sleepHours)
+                                    viewModel.updateSleepSettings(newSettings)
+                                },
+                                valueRange = 4f..12f,
+                                steps = 15,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFFD3BAFF),
+                                    activeTrackColor = Color(0xFF533F85),
+                                    inactiveTrackColor = Color.White.copy(alpha = 0.1f)
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Quick selection chips
+                            Row(
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf(6f, 7f, 8f, 9f, 10f).forEach { hours ->
+                                    val selected = kotlin.math.abs(sleepHours - hours) < 0.1f
+                                    FilterChip(
+                                        selected = selected,
+                                        onClick = {
+                                            sleepHours = hours
+                                            val newSettings = state.sleepSettings.copy(desiredSleepHours = hours)
+                                            viewModel.updateSleepSettings(newSettings)
+                                        },
+                                        label = { Text("${hours.toInt()}h", fontSize = 12.sp, color = if (selected) Color(0xFF3B2577) else Color.White) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = Color(0xFFD3BAFF),
+                                            containerColor = Color(0xFF1C1A20),
+                                        ),
+                                        border = FilterChipDefaults.filterChipBorder(
+                                            borderColor = Color.Transparent,
+                                            enabled = true,
+                                            selected = selected
+                                        )
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Fullscreen toggle
+                            CheckboxRow(
+                                label = "Vollbild-Erinnerung anzeigen",
+                                checked = sleepFullscreen,
+                                onCheckedChange = {
+                                    sleepFullscreen = it
+                                    val newSettings = state.sleepSettings.copy(showFullscreenReminder = it)
+                                    viewModel.updateSleepSettings(newSettings)
+                                }
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Vibrate only toggle
+                            CheckboxRow(
+                                label = "Nur Vibration (ohne Ton)",
+                                checked = sleepVibrateOnly,
+                                onCheckedChange = {
+                                    sleepVibrateOnly = it
+                                    val newSettings = state.sleepSettings.copy(vibrateOnly = it)
+                                    viewModel.updateSleepSettings(newSettings)
+                                }
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Auto-dismiss timeout
+                            Text(
+                                "Auto-Ausblendung nach",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf(10, 15, 30, 45, 60).forEach { minutes ->
+                                    val selected = sleepAutoDismiss == minutes
+                                    FilterChip(
+                                        selected = selected,
+                                        onClick = {
+                                            sleepAutoDismiss = minutes
+                                            val newSettings = state.sleepSettings.copy(autoDismissMinutes = minutes)
+                                            viewModel.updateSleepSettings(newSettings)
+                                        },
+                                        label = { Text("${minutes}m", fontSize = 12.sp, color = if (selected) Color(0xFF3B2577) else Color.White) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = Color(0xFFD3BAFF),
+                                            containerColor = Color(0xFF1C1A20),
+                                        ),
+                                        border = FilterChipDefaults.filterChipBorder(
+                                            borderColor = Color.Transparent,
+                                            enabled = true,
+                                            selected = selected
+                                        )
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Info card
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color.White.copy(alpha = 0.05f)
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Info,
+                                        null,
+                                        tint = Color(0xFFD3BAFF).copy(alpha = 0.8f),
+                                        modifier = Modifier.size(16.dp).padding(top = 2.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Die Erinnerung startet 2 Stunden vor deiner Schlafenszeit. Du siehst, wie viel Schlaf du bekommst, wenn du jetzt ins Bett gehst.",
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                    }
+                }
             }
 
             // --- ZUSATZWECKER ---

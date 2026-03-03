@@ -40,7 +40,8 @@ object AlarmScheduler {
         disabledDates: Set<String> = emptySet(),
         customAlarms: List<CustomAlarm> = emptyList(),
         templates: List<AlarmTemplate> = emptyList(),
-        oneTimeTemplate: OneTimeTemplate? = null
+        oneTimeTemplate: OneTimeTemplate? = null,
+        sleepSettings: bea.l8tenever.com.data.SleepSettings? = null
     ) {
         cancelAlarm(context)
 
@@ -114,6 +115,11 @@ object AlarmScheduler {
         // Haupt-Alarm setzen
         if (enabled) {
             setAlarm(context, alarmTime, firstLesson, ALARM_REQUEST_CODE, "Zeit aufzustehen!")
+
+            // Bedtime alarm scheduling
+            if (sleepSettings != null) {
+                scheduleBedtimeAlarm(context, alarmTime, sleepSettings)
+            }
         }
 
         // Custom-Alarms setzen (aus Template ODER globale Custom-Alarms)

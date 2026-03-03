@@ -371,18 +371,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Live Notification wiederherstellen
                 val restoredLiveNotification = currentState.wasLiveNotificationEnabledBeforeDisable
 
+                // Sleep Tracker wiederherstellen
+                val restoredSleepSettings = currentState.sleepSettings.copy(
+                    isEnabled = currentState.sleepSettings.wasEnabledBeforeMainAlarmDisable ?: false,
+                    wasEnabledBeforeMainAlarmDisable = null
+                )
+
                 _state.update {
                     it.copy(
                         alarmEnabled = enabled,
                         alarmMinutes = minutesBefore,
                         customAlarms = restoredCustomAlarms,
                         liveNotificationEnabled = restoredLiveNotification,
-                        wasLiveNotificationEnabledBeforeDisable = false
+                        wasLiveNotificationEnabledBeforeDisable = false,
+                        sleepSettings = restoredSleepSettings
                     )
                 }
 
                 prefs.saveCustomAlarms(restoredCustomAlarms)
                 prefs.saveWasLiveNotificationEnabledBeforeDisable(false)
+                prefs.saveSleepSettings(restoredSleepSettings)
                 if (restoredLiveNotification) {
                     context.dataStore.edit { it[stringPreferencesKey("live_notification_enabled")] = "true" }
                     bea.l8tenever.com.worker.LiveStundeWorker.schedule(context, true)
@@ -395,18 +403,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     alarm.copy(wasEnabledBeforeDisable = alarm.isEnabled, isEnabled = false)
                 }
 
+                // Sleep Tracker speichern und deaktivieren
+                val savedSleepSettings = currentState.sleepSettings.copy(
+                    wasEnabledBeforeMainAlarmDisable = currentState.sleepSettings.isEnabled,
+                    isEnabled = false
+                )
+
                 _state.update {
                     it.copy(
                         alarmEnabled = enabled,
                         alarmMinutes = minutesBefore,
                         customAlarms = savedCustomAlarms,
                         wasLiveNotificationEnabledBeforeDisable = currentState.liveNotificationEnabled,
-                        liveNotificationEnabled = false
+                        liveNotificationEnabled = false,
+                        sleepSettings = savedSleepSettings
                     )
                 }
 
                 prefs.saveCustomAlarms(savedCustomAlarms)
                 prefs.saveWasLiveNotificationEnabledBeforeDisable(currentState.liveNotificationEnabled)
+                prefs.saveSleepSettings(savedSleepSettings)
                 context.dataStore.edit { it[stringPreferencesKey("live_notification_enabled")] = "false" }
                 bea.l8tenever.com.worker.LiveStundeWorker.schedule(context, false)
             } else {
@@ -642,7 +658,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             disabledDates   = st.alarmDisabledDates,
             customAlarms    = st.customAlarms,
             templates       = st.templates,
-            oneTimeTemplate = st.oneTimeTemplate
+            oneTimeTemplate = st.oneTimeTemplate,
+            sleepSettings   = st.sleepSettings
         )
     }
 
