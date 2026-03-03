@@ -705,7 +705,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getEntriesForDate(date: LocalDate): List<TimetableEntry> {
         val dateStr = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-        val lessons = _state.value.timetable.filter { it.date == dateStr }.sortedBy { it.startTime }
+        val lessons = _state.value.timetable.filter { it.date == dateStr && !it.isCancelled }.sortedBy { it.startTime }
         
         if (lessons.isEmpty()) return emptyList()
         

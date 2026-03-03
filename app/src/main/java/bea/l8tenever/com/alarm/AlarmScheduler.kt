@@ -178,7 +178,7 @@ object AlarmScheduler {
         if (disabledDates.contains(dateStr)) return null
 
         return timetable
-            .filter { it.date == dateStr && !it.isCancelled }
+            .filter { it.date == dateStr && !it.isCancelled && it.subject != "Pause" }
             .minByOrNull { it.startTime }
     }
 
