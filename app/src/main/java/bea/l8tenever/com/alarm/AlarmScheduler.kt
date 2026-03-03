@@ -43,7 +43,14 @@ object AlarmScheduler {
     ) {
         cancelAlarm(context)
 
-        if (!enabled && customAlarms.none { it.isEnabled } && templates.none { it.isEnabled }) {
+        // Wenn Hauptwecker deaktiviert ist, auch Custom Alarms deaktivieren
+        val effectiveCustomAlarms = if (!enabled) {
+            customAlarms.map { it.copy(isEnabled = false) }
+        } else {
+            customAlarms
+        }
+
+        if (!enabled && effectiveCustomAlarms.none { it.isEnabled } && templates.none { it.isEnabled }) {
             Log.d(TAG, "Alarm ist deaktiviert und keine Custom-Alarms/Templates aktiv.")
             return
         }
@@ -97,11 +104,11 @@ object AlarmScheduler {
 
         // Effektive Einstellungen für den gefundenen Tag
         val lessonDate = LocalDate.parse(firstLesson.date)
-        val (effectiveMinutes, effectiveCustomAlarms) = resolveEffectiveSettings(
-            lessonDate, minutesBefore, customAlarms, templates, oneTimeTemplate
+        val (effectiveMinutes, effectiveResolvedCustomAlarms) = resolveEffectiveSettings(
+            lessonDate, minutesBefore, effectiveCustomAlarms, templates, oneTimeTemplate
         )
 
-        Log.d(TAG, "Template-Auflösung für ${firstLesson.date}: ${effectiveMinutes} Min, ${effectiveCustomAlarms.size} Custom-Alarms")
+        Log.d(TAG, "Template-Auflösung für ${firstLesson.date}: ${effectiveMinutes} Min, ${effectiveResolvedCustomAlarms.size} Custom-Alarms")
 
         // Haupt-Alarm setzen
         if (enabled) {
@@ -109,7 +116,7 @@ object AlarmScheduler {
         }
 
         // Custom-Alarms setzen (aus Template ODER globale Custom-Alarms)
-        effectiveCustomAlarms.filter { it.isEnabled }.forEachIndexed { index, custom ->
+        effectiveResolvedCustomAlarms.filter { it.isEnabled }.forEachIndexed { index, custom ->
             val customTime = calculateAlarmTime(firstLesson, custom.minutesBefore)
             if (customTime != null && customTime.isAfter(now)) {
                 setAlarm(context, customTime, firstLesson, 2000 + index, custom.name, custom.showWeather)
