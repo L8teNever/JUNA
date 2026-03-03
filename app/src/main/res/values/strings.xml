@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">YUNA</string>
+    <string name="widget_description">Zeigt die aktuelle oder nächste Unterrichtsstunde an.</string>
+    <string name="countdown_widget_description">Zeigt, wie lange die aktuelle Stunde noch geht.</string>
+    <string name="list_widget_description">Zeigt deinen kompletten Stundenplan für heute an.</string>
+    <string name="alarm_widget_description">Zeigt an, wann dein nächster Wecker klingelt.</string>
 </resources>

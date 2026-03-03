@@ -15,6 +15,11 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import bea.l8tenever.com.data.UserPreferences
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
+import androidx.glance.appwidget.updateAll
+import bea.l8tenever.com.widget.*
 
 object AlarmScheduler {
 
@@ -67,8 +72,28 @@ object AlarmScheduler {
             ?: findLessonAndTime(dayAfterTomorrow)
             ?: run {
                 Log.d(TAG, "Kein gültiger Alarm-Zeitpunkt gefunden.")
+                MainScope().launch {
+                    UserPreferences(context).saveNextAlarm("", "")
+                    NextLessonWidget().updateAll(context)
+                    LessonCountdownWidget().updateAll(context)
+                    TimetableListWidget().updateAll(context)
+                    AlarmStatusWidget().updateAll(context)
+                }
                 return
             }
+
+        // Save for widgets to see
+        MainScope().launch {
+            val dateStr = alarmTime.toLocalDate().toString()
+            val timeStr = alarmTime.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
+            UserPreferences(context).saveNextAlarm(dateStr, timeStr)
+            
+            // Trigger all widgets to refresh
+            NextLessonWidget().updateAll(context)
+            LessonCountdownWidget().updateAll(context)
+            TimetableListWidget().updateAll(context)
+            AlarmStatusWidget().updateAll(context)
+        }
 
         // Effektive Einstellungen für den gefundenen Tag
         val lessonDate = LocalDate.parse(firstLesson.date)
@@ -87,7 +112,7 @@ object AlarmScheduler {
         effectiveCustomAlarms.filter { it.isEnabled }.forEachIndexed { index, custom ->
             val customTime = calculateAlarmTime(firstLesson, custom.minutesBefore)
             if (customTime != null && customTime.isAfter(now)) {
-                setAlarm(context, customTime, firstLesson, 2000 + index, custom.name)
+                setAlarm(context, customTime, firstLesson, 2000 + index, custom.name, custom.showWeather)
                 Log.d(TAG, "Custom-Alarm '${custom.name}' gesetzt für: $customTime")
             } else {
                 Log.d(TAG, "Custom-Alarm '${custom.name}' übersprungen (Zeit in Vergangenheit: $customTime)")
@@ -170,7 +195,8 @@ object AlarmScheduler {
         alarmTime: LocalDateTime, 
         lesson: TimetableEntry, 
         requestCode: Int, 
-        title: String
+        title: String,
+        showWeather: Boolean = false
     ) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, AlarmReceiver::class.java).apply {
@@ -178,6 +204,7 @@ object AlarmScheduler {
             putExtra("lesson_time", lesson.startTime)
             putExtra("lesson_date", lesson.date)
             putExtra("alarm_title", title)
+            putExtra("show_weather", showWeather)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(

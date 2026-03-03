@@ -27,6 +27,22 @@ object PrefsKeys {
     val CUSTOM_ALARMS = stringPreferencesKey("custom_alarms")
     val TEMPLATES     = stringPreferencesKey("alarm_templates")    // JSON-Liste von AlarmTemplate
     val ONE_TIME_TEMPLATE = stringPreferencesKey("one_time_template") // JSON von OneTimeTemplate?
+    val WAS_LIVE_NOTIFICATION_BEFORE_DISABLE = stringPreferencesKey("was_live_notification_before_disable") // "true"/"false"
+
+    // Schulmodus-Einstellungen
+    val AUTO_DND_ENABLED = stringPreferencesKey("auto_dnd_enabled") // "true"/"false"
+    val AUTO_VOLUME_ENABLED = stringPreferencesKey("auto_volume_enabled") // "true"/"false"
+    val AUTO_VOLUME_RING = stringPreferencesKey("auto_volume_ring") // "true"/"false"
+    val AUTO_VOLUME_NOTIFICATION = stringPreferencesKey("auto_volume_notification") // "true"/"false"
+    val AUTO_VOLUME_MEDIA = stringPreferencesKey("auto_volume_media") // "true"/"false"
+    val DND_PAUSE_BEHAVIOR = stringPreferencesKey("dnd_pause_behavior") // "deactivate" oder "keep_active"
+    val AUTO_DND_NOTIFY = stringPreferencesKey("auto_dnd_notify") // "true"/"false"
+
+    // Theme & Color
+    val THEME_MODE = stringPreferencesKey("theme_mode") // "system", "light", "dark"
+    val USE_DYNAMIC_COLORS = stringPreferencesKey("use_dynamic_colors") // "true"/"false"
+    val NEXT_ALARM_DATE = stringPreferencesKey("next_alarm_date")
+    val NEXT_ALARM_TIME = stringPreferencesKey("next_alarm_time")
 }
 
 class UserPreferences(private val context: Context) {
@@ -70,6 +86,35 @@ class UserPreferences(private val context: Context) {
                 emptyList()
             }
         }
+    }
+
+    val autoDndEnabled: Flow<Boolean> = context.dataStore.data.map {
+        it[PrefsKeys.AUTO_DND_ENABLED] != "false"
+    }
+    val autoVolumeEnabled: Flow<Boolean> = context.dataStore.data.map {
+        it[PrefsKeys.AUTO_VOLUME_ENABLED] != "false"
+    }
+    val autoVolumeRing: Flow<Boolean> = context.dataStore.data.map {
+        it[PrefsKeys.AUTO_VOLUME_RING] != "false"
+    }
+    val autoVolumeNotification: Flow<Boolean> = context.dataStore.data.map {
+        it[PrefsKeys.AUTO_VOLUME_NOTIFICATION] != "false"
+    }
+    val autoVolumeMedia: Flow<Boolean> = context.dataStore.data.map {
+        (it[PrefsKeys.AUTO_VOLUME_MEDIA] ?: "false") != "false"
+    }
+    val dndPauseBehavior: Flow<String> = context.dataStore.data.map {
+        it[PrefsKeys.DND_PAUSE_BEHAVIOR] ?: "deactivate"
+    }
+    val autoDndNotify: Flow<Boolean> = context.dataStore.data.map {
+        it[PrefsKeys.AUTO_DND_NOTIFY] != "false"
+    }
+
+    val themeMode: Flow<String> = context.dataStore.data.map {
+        it[PrefsKeys.THEME_MODE] ?: "system"
+    }
+    val useDynamicColors: Flow<Boolean> = context.dataStore.data.map {
+        it[PrefsKeys.USE_DYNAMIC_COLORS] != "false"
     }
 
     suspend fun saveCredentials(credentials: LoginCredentials) {
@@ -126,7 +171,53 @@ class UserPreferences(private val context: Context) {
 
     suspend fun saveCustomAlarms(alarms: List<CustomAlarm>) {
         context.dataStore.edit { prefs ->
-            prefs[PrefsKeys.CUSTOM_ALARMS] = com.google.gson.Gson().toJson(alarms)
+            // Cleanup: wasEnabledBeforeDisable nur speichern wenn alarmEnabled == false
+            // Sonst entfernen wir es, um Speicher zu sparen
+            val cleaned = alarms.map { alarm ->
+                if (alarm.isEnabled) {
+                    alarm.copy(wasEnabledBeforeDisable = null)
+                } else {
+                    alarm
+                }
+            }
+            prefs[PrefsKeys.CUSTOM_ALARMS] = com.google.gson.Gson().toJson(cleaned)
+        }
+    }
+
+    suspend fun saveSchoolModeSettings(
+        dndEnabled: Boolean,
+        volumeEnabled: Boolean,
+        volumeRing: Boolean,
+        volumeNotification: Boolean,
+        volumeMedia: Boolean,
+        pauseBehavior: String
+    ) {
+        context.dataStore.edit { prefs ->
+            prefs[PrefsKeys.AUTO_DND_ENABLED] = if (dndEnabled) "true" else "false"
+            prefs[PrefsKeys.AUTO_VOLUME_ENABLED] = if (volumeEnabled) "true" else "false"
+            prefs[PrefsKeys.AUTO_VOLUME_RING] = if (volumeRing) "true" else "false"
+            prefs[PrefsKeys.AUTO_VOLUME_NOTIFICATION] = if (volumeNotification) "true" else "false"
+            prefs[PrefsKeys.AUTO_VOLUME_MEDIA] = if (volumeMedia) "true" else "false"
+            prefs[PrefsKeys.DND_PAUSE_BEHAVIOR] = pauseBehavior
+        }
+    }
+
+    suspend fun saveAutoDndNotify(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[PrefsKeys.AUTO_DND_NOTIFY] = if (enabled) "true" else "false"
+        }
+    }
+
+    suspend fun saveThemeSettings(mode: String, dynamicColors: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[PrefsKeys.THEME_MODE] = mode
+            prefs[PrefsKeys.USE_DYNAMIC_COLORS] = if (dynamicColors) "true" else "false"
+        }
+    }
+
+    suspend fun saveWasLiveNotificationEnabledBeforeDisable(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[PrefsKeys.WAS_LIVE_NOTIFICATION_BEFORE_DISABLE] = if (enabled) "true" else "false"
         }
     }
 
@@ -134,6 +225,13 @@ class UserPreferences(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs.remove(PrefsKeys.SESSION_ID)
             prefs.remove(PrefsKeys.KLASSE_ID)
+        }
+    }
+
+    suspend fun saveNextAlarm(dateStr: String, timeStr: String) {
+        context.dataStore.edit { prefs ->
+            prefs[PrefsKeys.NEXT_ALARM_DATE] = dateStr
+            prefs[PrefsKeys.NEXT_ALARM_TIME] = timeStr
         }
     }
 

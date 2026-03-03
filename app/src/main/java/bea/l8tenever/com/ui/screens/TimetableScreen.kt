@@ -64,7 +64,7 @@ fun TimetableScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(MaterialTheme.colorScheme.background)
             .pointerInput(state.selectedDate) {
                 var dragAmountX = 0f
                 detectHorizontalDragGestures(
@@ -91,7 +91,7 @@ fun TimetableScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                    .padding(start = 20.dp, top = 4.dp, end = 20.dp, bottom = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -105,7 +105,7 @@ fun TimetableScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "SchlieÃŸen",
+                        contentDescription = "Schließen",
                         tint = Color.White,
                         modifier = Modifier.size(20.dp)
                     )
@@ -114,7 +114,7 @@ fun TimetableScreen(
                 // Day Navigation (Center)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { viewModel.setSelectedDate(state.selectedDate.minusDays(1)) }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "ZurÃ¼ck", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Zurück", tint = Color.White)
                     }
                     val isToday = state.selectedDate == today
                     val isTomorrow = state.selectedDate == today.plusDays(1)
@@ -277,7 +277,7 @@ fun TimetableScreen(
                         )
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            text = "GenieÃŸe deinen Tag.",
+                            text = "Genieße deinen Tag.",
                             fontSize = 14.sp,
                             color = Color.White.copy(alpha = 0.5f)
                         )
@@ -399,7 +399,7 @@ fun LessonCard(entry: TimetableEntry, isCurrentlyPlaying: Boolean) {
                                 .padding(horizontal = 6.dp, vertical = 3.dp)
                         ) {
                             Text(
-                                "ENTFÃ„LLT",
+                                "ENTFÄLLT",
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Black,
                                 color = Color(0xFFFF8A80)

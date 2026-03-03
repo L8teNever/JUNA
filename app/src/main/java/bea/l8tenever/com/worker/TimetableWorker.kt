@@ -12,6 +12,10 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
+import bea.l8tenever.com.widget.NextLessonWidget
+import bea.l8tenever.com.widget.LessonCountdownWidget
+import bea.l8tenever.com.widget.TimetableListWidget
+import androidx.glance.appwidget.updateAll
 
 
 
@@ -139,6 +143,10 @@ class TimetableWorker(
         applicationContext.dataStore.edit { prefs ->
             prefs[stringPreferencesKey("cached_timetable")] = json
         }
+        // Update home screen widgets
+        NextLessonWidget().updateAll(applicationContext)
+        LessonCountdownWidget().updateAll(applicationContext)
+        TimetableListWidget().updateAll(applicationContext)
     }
 
 

@@ -70,7 +70,15 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            YunaTheme { YunaApp(viewModel) }
+            val state by viewModel.state.collectAsState()
+            val darkTheme = when(state.themeMode) {
+                "light" -> false
+                "dark" -> true
+                else -> androidx.compose.foundation.isSystemInDarkTheme()
+            }
+            YunaTheme(darkTheme = darkTheme, dynamicColor = state.useDynamicColors) {
+                YunaApp(viewModel)
+            }
         }
     }
 

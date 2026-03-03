@@ -22,6 +22,9 @@
     <!-- Vibration -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Do Not Disturb / Schulmodus -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -84,6 +87,67 @@
             android:name=".alarm.AlarmService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Home Screen Widget -->
+        <receiver
+            android:name=".widget.NextLessonWidgetReceiver"
+            android:label="Nächste Stunde"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/next_lesson_widget_info" />
+        </receiver>
+
+        <!-- Countdown Widget -->
+        <receiver
+            android:name=".widget.LessonCountdownWidgetReceiver"
+            android:label="Wie lange noch?"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/lesson_countdown_widget_info" />
+        </receiver>
+
+        <!-- List Widget -->
+        <receiver
+            android:name=".widget.TimetableListWidgetReceiver"
+            android:label="Heutiger Plan"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/timetable_list_widget_info" />
+        </receiver>
+
+        <!-- Alarm Status Widget -->
+        <receiver
+            android:name=".widget.AlarmStatusWidgetReceiver"
+            android:label="Wecker Status"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/alarm_status_widget_info" />
+        </receiver>
+
+        <!-- Widget Configuration Activity -->
+        <activity
+            android:name=".widget.WidgetConfigurationActivity"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
 
     </application>
 

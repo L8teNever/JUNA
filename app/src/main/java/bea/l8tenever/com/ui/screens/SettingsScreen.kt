@@ -1,5 +1,6 @@
 ﻿package bea.l8tenever.com.ui.screens
 
+import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -35,6 +36,12 @@ fun SettingsScreen(
     var sliderValue  by remember(state.alarmMinutes) { mutableFloatStateOf(state.alarmMinutes.toFloat()) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showAddCustomAlarmDialog by remember { mutableStateOf(false) }
+    var autoDndEnabled by remember(state.autoDndEnabled) { mutableStateOf(state.autoDndEnabled) }
+    var autoVolumeEnabled by remember(state.autoVolumeEnabled) { mutableStateOf(state.autoVolumeEnabled) }
+    var autoVolumeRing by remember(state.autoVolumeRing) { mutableStateOf(state.autoVolumeRing) }
+    var autoVolumeNotification by remember(state.autoVolumeNotification) { mutableStateOf(state.autoVolumeNotification) }
+    var autoVolumeMedia by remember(state.autoVolumeMedia) { mutableStateOf(state.autoVolumeMedia) }
+    var dndPauseBehavior by remember(state.dndPauseBehavior) { mutableStateOf(state.dndPauseBehavior) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
     // Berechtigungs-Status live prÃ¼fen
@@ -73,7 +80,7 @@ fun SettingsScreen(
     }
 
     Scaffold(
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
 
         Column(
@@ -81,13 +88,12 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(padding)
-                .background(Color.Black)
         ) {
             // --- TOP BAR ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                    .padding(start = 20.dp, top = 4.dp, end = 20.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -107,7 +113,7 @@ fun SettingsScreen(
                 ) {
                     Icon(
                         imageVector = if (currentCategory == SettingsCategory.MAIN) Icons.Default.Close else Icons.Default.ArrowBack,
-                        contentDescription = "ZurÃ¼ck",
+                        contentDescription = "Zurück",
                         tint = Color.White,
                         modifier = Modifier.size(20.dp)
                     )
@@ -147,6 +153,11 @@ fun SettingsScreen(
                             title = "System & Berechtigungen",
                             icon = Icons.Outlined.Security,
                             onClick = { currentCategory = SettingsCategory.SYSTEM }
+                        )
+                        SettingsMenuCard(
+                            title = "Design & Optik",
+                            icon = Icons.Outlined.Palette,
+                            onClick = { currentCategory = SettingsCategory.DESIGN }
                         )
                         SettingsMenuCard(
                             title = "Konto & Info",
@@ -304,7 +315,7 @@ fun SettingsScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text    = "Der Wecker klingelt $alarmMinutes Minuten vor der ersten Schulstunde.\n" +
-                                              "Wenn die erste Stunde ausfÃ¤llt, wird er automatisch zur nÃ¤chsten Stunde verschoben.",
+                                              "Wenn die erste Stunde ausfällt, wird er automatisch zur nächsten Stunde verschoben.",
                                     color   = Color.White.copy(alpha = 0.7f),
                                     fontSize = 12.sp
                                 )
@@ -349,7 +360,7 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                "NÃ¤chster Alarm",
+                                "Nächster Alarm",
                                 fontWeight = FontWeight.SemiBold,
                                 color      = Color.White,
                                 fontSize   = 14.sp
@@ -458,7 +469,7 @@ fun SettingsScreen(
                                 IconButton(onClick = { editingTemplate = tmpl; showTemplateDialog = true }, modifier = Modifier.size(34.dp)) {
                                     Icon(Icons.Outlined.Edit, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
                                 }
-                                // LÃ¶schen
+                                // Löschen
                                 IconButton(onClick = { viewModel.removeTemplate(tmpl.id) }, modifier = Modifier.size(34.dp)) {
                                     Icon(Icons.Outlined.Delete, null, tint = Color(0xFFFF8A80).copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
                                 }
@@ -498,7 +509,7 @@ fun SettingsScreen(
                                     fontSize = 15.sp
                                 )
                                 Text(
-                                    text = "${customAlarm.minutesBefore} Min. vor Unterricht",
+                                    text = "${customAlarm.minutesBefore} Min. vor Unterricht" + if(customAlarm.showWeather) " • Wetter" else "",
                                     color = Color.White.copy(alpha = 0.5f),
                                     fontSize = 12.sp
                                 )
@@ -515,7 +526,7 @@ fun SettingsScreen(
                         modifier = Modifier.scale(0.85f)
                             )
                             IconButton(onClick = { viewModel.removeCustomAlarm(customAlarm.id) }) {
-                                Icon(Icons.Outlined.Delete, contentDescription = "LÃ¶schen", tint = Color(0xFFFF5252))
+                                Icon(Icons.Outlined.Delete, contentDescription = "Löschen", tint = Color(0xFFFF5252))
                             }
                         }
                     }
@@ -582,7 +593,170 @@ fun SettingsScreen(
                 }
             }
 
-            
+            SettingsSectionHeader("Schul-Modus", Icons.Outlined.School)
+
+            SettingsFeatureCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF3B2577).copy(alpha = 0.3f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.DoNotDisturb, null, tint = Color(0xFFD3BAFF))
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Nicht Stören während Unterricht",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = 15.sp
+                        )
+                        Text(
+                            "Aktiviert DND automatisch in Schulstunden",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 12.sp
+                        )
+                    }
+                    Switch(
+                        checked = autoDndEnabled,
+                        onCheckedChange = {
+                            autoDndEnabled = it
+                            viewModel.toggleAutoDnd(it)
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color(0xFFD3BAFF),
+                            checkedTrackColor = Color(0xFF533F85).copy(alpha = 0.6f),
+                            uncheckedThumbColor = Color.LightGray,
+                            uncheckedTrackColor = Color.DarkGray
+                        ),
+                        modifier = Modifier.scale(0.85f)
+                    )
+                }
+            }
+
+            SettingsFeatureCard {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF3B2577).copy(alpha = 0.3f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Outlined.VolumeOff, null, tint = Color(0xFFD3BAFF))
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Lautstärke auf 0 während Unterricht",
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                fontSize = 15.sp
+                            )
+                            Text(
+                                "Automatische Stummschaltung",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 12.sp
+                            )
+                        }
+                        Switch(
+                            checked = autoVolumeEnabled,
+                            onCheckedChange = {
+                                autoVolumeEnabled = it
+                                viewModel.toggleAutoVolume(it)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFFD3BAFF),
+                                checkedTrackColor = Color(0xFF533F85).copy(alpha = 0.6f),
+                                uncheckedThumbColor = Color.LightGray,
+                                uncheckedTrackColor = Color.DarkGray
+                            ),
+                            modifier = Modifier.scale(0.85f)
+                        )
+                    }
+
+                    AnimatedVisibility(visible = autoVolumeEnabled) {
+                        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            CheckboxRow(
+                                label = "Klingelton (Anrufe)",
+                                checked = autoVolumeRing,
+                                onCheckedChange = {
+                                    autoVolumeRing = it
+                                    viewModel.updateVolumeSettings(ring = it)
+                                }
+                            )
+
+                            CheckboxRow(
+                                label = "Benachrichtigungen",
+                                checked = autoVolumeNotification,
+                                onCheckedChange = {
+                                    autoVolumeNotification = it
+                                    viewModel.updateVolumeSettings(notification = it)
+                                }
+                            )
+
+                            CheckboxRow(
+                                label = "Medien (Musik/Videos)",
+                                checked = autoVolumeMedia,
+                                onCheckedChange = {
+                                    autoVolumeMedia = it
+                                    viewModel.updateVolumeSettings(media = it)
+                                }
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+                    }
+                }
+            }
+
+            SettingsFeatureCard {
+                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Verhalten während Pausen",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 14.sp
+                    )
+
+                    RadioButtonRow(
+                        label = "Während Pausen deaktivieren",
+                        description = "Stummschaltung wird in Pausen aufgehoben",
+                        selected = dndPauseBehavior == "deactivate",
+                        onClick = {
+                            dndPauseBehavior = "deactivate"
+                            viewModel.updatePauseBehavior("deactivate")
+                        }
+                    )
+
+                    RadioButtonRow(
+                        label = "Durchgehend aktiv bis Schulende",
+                        description = "Bleibt aktiv auch in Pausen",
+                        selected = dndPauseBehavior == "keep_active",
+                        onClick = {
+                            dndPauseBehavior = "keep_active"
+                            viewModel.updatePauseBehavior("keep_active")
+                        }
+                    )
+                }
+            }
+
+
+
+
                     }
                     SettingsCategory.SYSTEM -> {
             SettingsCategoryTitle("SYSTEM & BERECHTIGUNGEN")
@@ -625,7 +799,7 @@ fun SettingsScreen(
                                 color = Color.White
                             )
                             Text(
-                                if (battOk) "âœ“ Ausgeschaltet â€“ Wecker funktioniert" else "âš  Aktiv â€“ Wecker kÃ¶nnte nicht klingeln!",
+                                if (battOk) "✓ Ausgeschaltet – Wecker funktioniert" else "⚠ Aktiv – Wecker könnte nicht klingeln!",
                                 fontSize = 11.sp,
                                 color = if (battOk) Color(0xFF4CAF50) else Color(0xFFFF8A80)
                             )
@@ -684,7 +858,7 @@ fun SettingsScreen(
                                     color = Color.White
                                 )
                                 Text(
-                                    if (exactOk) "âœ“ Erlaubt â€“ Wecker klingelt pÃ¼nktlich" else "âš  Verweigert â€“ Wecker kÃ¶nnte zu spÃ¤t klingeln!",
+                                    if (exactOk) "✓ Erlaubt – Wecker klingelt pünktlich" else "⚠ Verweigert – Wecker könnte zu spät klingeln!",
                                     fontSize = 11.sp,
                                     color = if (exactOk) Color(0xFF4CAF50) else Color(0xFFFF8A80)
                                 )
@@ -707,9 +881,118 @@ fun SettingsScreen(
                 }
             }
 
-            
+            // 3. Nicht stören-Zugriff
+            SettingsSectionHeader("DND-Steuerung", Icons.Outlined.NotificationsActive)
+            SettingsFeatureCard {
+                val dndOk = state.hasDndPermission
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            try {
+                                context.startActivity(
+                                    android.content.Intent(
+                                        android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS
+                                    )
+                                )
+                            } catch (e: Exception) {
+                                Log.e("SettingsScreen", "Fehler beim Öffnen der DND Settings", e)
+                            }
+                        }
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (dndOk) Color(0xFF4CAF50).copy(alpha = 0.15f)
+                                else Color(0xFFFF5252).copy(alpha = 0.12f)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            if (dndOk) Icons.Outlined.CheckCircle else Icons.Outlined.DoNotDisturbOn,
+                            null,
+                            tint = if (dndOk) Color(0xFF4CAF50) else Color(0xFFFF8A80),
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
-                    SettingsCategory.ACCOUNT -> {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Nicht stören-Zugriff",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                            color = Color.White
+                        )
+                        Text(
+                            if (dndOk) "✓ Erlaubt – Schulmodus bereit" else "⚠ Erforderlich für automatische Stummschaltung",
+                            fontSize = 11.sp,
+                            color = if (dndOk) Color(0xFF4CAF50) else Color(0xFFFF8A80)
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.3f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+        SettingsCategory.DESIGN -> {
+            SettingsCategoryTitle("DESIGN & OPTIK")
+            
+            SettingsSectionHeader("Material You", Icons.Outlined.ColorLens)
+            SettingsFeatureCard {
+                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Dynamische Farben", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White)
+                            Text("Farben an System/Wallpaper anpassen", fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f))
+                        }
+                        Switch(
+                            checked = state.useDynamicColors,
+                            onCheckedChange = { viewModel.updateThemeSettings(state.themeMode, it) },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFFD3BAFF))
+                        )
+                    }
+                }
+            }
+
+            SettingsSectionHeader("Erscheinungsbild", Icons.Outlined.DarkMode)
+            SettingsFeatureCard {
+                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+                    RadioButtonRow(
+                        label = "Systemstandard",
+                        description = "Folgt den Android-Systemeinstellungen",
+                        selected = state.themeMode == "system",
+                        onClick = { viewModel.updateThemeSettings("system", state.useDynamicColors) }
+                    )
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+                    RadioButtonRow(
+                        label = "Hell",
+                        description = "Klassisches helles Design",
+                        selected = state.themeMode == "light",
+                        onClick = { viewModel.updateThemeSettings("light", state.useDynamicColors) }
+                    )
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+                    RadioButtonRow(
+                        label = "Dunkel",
+                        description = "Schonendes dunkles Design",
+                        selected = state.themeMode == "dark",
+                        onClick = { viewModel.updateThemeSettings("dark", state.useDynamicColors) }
+                    )
+                }
+            }
+        }
+        SettingsCategory.ACCOUNT -> {
             SettingsCategoryTitle("KONTO & INFO")
 // --- KONTO SEKTION ---
             SettingsSectionHeader("Account-Link", Icons.Outlined.AccountCircle)
@@ -736,7 +1019,7 @@ fun SettingsScreen(
                                 fontSize   = 15.sp
                             )
                             Text(
-                                "${state.school} Â· ${state.serverUrl.removePrefix("https://").removePrefix("http://").takeLast(30)}",
+                                "${state.school} · ${state.serverUrl.removePrefix("https://").removePrefix("http://").takeLast(30)}",
                                 color    = Color.White.copy(alpha = 0.5f),
                                 fontSize = 11.sp
                             )
@@ -788,7 +1071,7 @@ fun SettingsScreen(
             onDismissRequest = { showLogoutDialog = false },
             icon             = { Icon(Icons.Outlined.Logout, null, tint = Color(0xFFFF8A80)) },
             title            = { Text("Abmelden?", fontWeight = FontWeight.Bold, color = Color.White) },
-            text             = { Text("Alle gespeicherten Daten und der Alarm werden gelÃ¶scht.", color = Color.White.copy(alpha = 0.7f)) },
+            text             = { Text("Alle gespeicherten Daten und der Alarm werden gelöscht.", color = Color.White.copy(alpha = 0.7f)) },
             confirmButton    = {
                 Button(
                     onClick = {
@@ -811,6 +1094,7 @@ fun SettingsScreen(
     if (showAddCustomAlarmDialog) {
         var newName by remember { mutableStateOf("") }
         var newMinutes by remember { mutableFloatStateOf(10f) }
+        var showWeather by remember { mutableStateOf(false) }
 
         AlertDialog(
             onDismissRequest = { showAddCustomAlarmDialog = false },
@@ -820,7 +1104,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = newName,
                         onValueChange = { newName = it },
-                        label = { Text("Name (z.B. ZÃ¤hneputzen)", color = Color.White.copy(alpha = 0.5f)) },
+                        label = { Text("Name (z.B. Zähneputzen)", color = Color.White.copy(alpha = 0.5f)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = TextFieldDefaults.colors(
@@ -845,19 +1129,31 @@ fun SettingsScreen(
                             inactiveTrackColor = Color.White.copy(alpha = 0.1f)
                         )
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { showWeather = !showWeather },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = showWeather,
+                            onCheckedChange = { showWeather = it },
+                            colors = CheckboxDefaults.colors(checkedColor = Color(0xFFD3BAFF), uncheckedColor = Color.White.copy(alpha = 0.5f))
+                        )
+                        Text("Zusätzlich aktuelles Wetter anzeigen", color = Color.White, fontSize = 13.sp)
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
                         if (newName.isNotBlank()) {
-                            viewModel.addCustomAlarm(newName.trim(), newMinutes.toInt())
+                            viewModel.addCustomAlarm(newName.trim(), newMinutes.toInt(), showWeather)
                         }
                         showAddCustomAlarmDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B2577))
                 ) {
-                    Text("HinzufÃ¼gen", color = Color.White)
+                    Text("Hinzufügen", color = Color.White)
                 }
             },
             dismissButton = {
@@ -898,7 +1194,7 @@ fun SettingsFeatureCard(content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF141315)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
         content = content
     )
 }
@@ -926,15 +1222,16 @@ fun TemplateEditDialog(
     var customAlarms by remember { mutableStateOf(initial?.customAlarms ?: emptyList()) }
     var newCustomName by remember { mutableStateOf("") }
     var newCustomMinutes by remember { mutableStateOf("60") }
+    var newCustomShowWeather by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF1C1A20),
+        containerColor = MaterialTheme.colorScheme.surface,
         title = {
             Text(
                 if (initial == null) "Template erstellen" else "Template bearbeiten",
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
         },
         text = {
@@ -948,16 +1245,16 @@ fun TemplateEditDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Template-Name", fontSize = 13.sp, color = Color.White.copy(alpha = 0.5f)) },
-                    placeholder = { Text("z.B. Dusch-Tag", fontSize = 13.sp, color = Color.White.copy(alpha = 0.3f)) },
+                    label = { Text("Template-Name", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)) },
+                    placeholder = { Text("z.B. Dusch-Tag", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFFD3BAFF),
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     )
                 )
 
@@ -1016,7 +1313,7 @@ fun TemplateEditDialog(
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(ca.name, fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Medium)
-                            Text("${ca.minutesBefore} Min vor 1. Stunde", fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f))
+                            Text("${ca.minutesBefore} Min vor 1. Stunde" + if(ca.showWeather) " • Wetter" else "", fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f))
                         }
                         IconButton(onClick = { customAlarms = customAlarms.filter { it.id != ca.id } }, modifier = Modifier.size(32.dp)) {
                             Icon(Icons.Outlined.Delete, null, tint = Color(0xFFFF8A80).copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
@@ -1058,12 +1355,22 @@ fun TemplateEditDialog(
                             unfocusedTextColor = Color.White
                         )
                     )
+                    Checkbox(
+                        checked = newCustomShowWeather,
+                        onCheckedChange = { newCustomShowWeather = it },
+                        modifier = Modifier.size(32.dp),
+                        colors = CheckboxDefaults.colors(checkedColor = Color(0xFFD3BAFF), uncheckedColor = Color.White.copy(alpha = 0.5f))
+                    )
                     IconButton(
                         onClick = {
                             val m = newCustomMinutes.toIntOrNull() ?: return@IconButton
                             if (newCustomName.isNotBlank()) {
-                                customAlarms = customAlarms + bea.l8tenever.com.data.CustomAlarm(name = newCustomName.trim(), minutesBefore = m)
-                                newCustomName = ""; newCustomMinutes = "60"
+                                customAlarms = customAlarms + bea.l8tenever.com.data.CustomAlarm(
+                                    name = newCustomName.trim(), 
+                                    minutesBefore = m, 
+                                    showWeather = newCustomShowWeather
+                                )
+                                newCustomName = ""; newCustomMinutes = "60"; newCustomShowWeather = false
                             }
                         },
                         modifier = Modifier.size(40.dp)
@@ -1117,6 +1424,7 @@ enum class SettingsCategory(val title: String) {
     ALARM("WECK-EINSTELLUNGEN"),
     NOTIFICATIONS("BENACHRICHTIGUNGEN"),
     SYSTEM("SYSTEM & BERECHTIGUNGEN"),
+    DESIGN("DESIGN & OPTIK"),
     ACCOUNT("KONTO & INFO")
 }
 
@@ -1153,9 +1461,70 @@ fun SettingsMenuCard(title: String, icon: androidx.compose.ui.graphics.vector.Im
             )
             Icon(
                 imageVector = Icons.Default.ChevronRight,
-                contentDescription = "Ã–ffnen",
+                contentDescription = "Öffnen",
                 tint = Color.White.copy(alpha = 0.5f),
                 modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun CheckboxRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = CheckboxDefaults.colors(
+                checkedColor = Color(0xFFD3BAFF),
+                uncheckedColor = Color.White.copy(alpha = 0.3f)
+            )
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            label,
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+fun RadioButtonRow(label: String, description: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = onClick,
+            colors = RadioButtonDefaults.colors(
+                selectedColor = Color(0xFFD3BAFF),
+                unselectedColor = Color.White.copy(alpha = 0.3f)
+            )
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(
+                label,
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                description,
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 12.sp
             )
         }
     }

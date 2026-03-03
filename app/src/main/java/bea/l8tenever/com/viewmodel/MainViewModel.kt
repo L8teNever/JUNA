@@ -1,6 +1,8 @@
 package bea.l8tenever.com.viewmodel
 
 import android.app.Application
+import android.app.NotificationManager
+import android.os.Build
 import android.util.Log
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -9,6 +11,10 @@ import androidx.lifecycle.viewModelScope
 import bea.l8tenever.com.data.*
 import bea.l8tenever.com.alarm.AlarmScheduler
 import bea.l8tenever.com.worker.TimetableWorker
+import bea.l8tenever.com.widget.NextLessonWidget
+import bea.l8tenever.com.widget.LessonCountdownWidget
+import bea.l8tenever.com.widget.TimetableListWidget
+import androidx.glance.appwidget.updateAll
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.*
@@ -42,7 +48,19 @@ data class AppUiState(
     val sessionId: String = "",
     val klasseId: Int = 0,
     val personId: Int = 0,
-    val liveNotificationEnabled: Boolean = false
+    val liveNotificationEnabled: Boolean = false,
+    val wasLiveNotificationEnabledBeforeDisable: Boolean = false,
+    // Schulmodus-Einstellungen
+    val autoDndEnabled: Boolean = false,
+    val autoVolumeEnabled: Boolean = false,
+    val autoVolumeRing: Boolean = true,
+    val autoVolumeNotification: Boolean = true,
+    val autoVolumeMedia: Boolean = false,
+    val dndPauseBehavior: String = "deactivate",
+    val autoDndNotify: Boolean = true,
+    val hasDndPermission: Boolean = false,
+    val themeMode: String = "system", // system, light, dark
+    val useDynamicColors: Boolean = true
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -105,6 +123,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             val liveEnabled = p[stringPreferencesKey("live_notification_enabled")] == "true"
+            val wasLiveEnabledBeforeDisable = p[PrefsKeys.WAS_LIVE_NOTIFICATION_BEFORE_DISABLE] == "true"
+
+            // Schulmodus-Einstellungen laden
+            val autoDndEnabled = p[PrefsKeys.AUTO_DND_ENABLED] != "false"
+            val autoVolumeEnabled = p[PrefsKeys.AUTO_VOLUME_ENABLED] != "false"
+            val autoVolumeRing = p[PrefsKeys.AUTO_VOLUME_RING] != "false"
+            val autoVolumeNotification = p[PrefsKeys.AUTO_VOLUME_NOTIFICATION] != "false"
+            val autoVolumeMedia = p[PrefsKeys.AUTO_VOLUME_MEDIA] ?: "false" != "false"
+            val dndPauseBehavior = p[PrefsKeys.DND_PAUSE_BEHAVIOR] ?: "deactivate"
+            val autoDndNotify = p[PrefsKeys.AUTO_DND_NOTIFY] != "false"
+            
+            // Theme & Color
+            val themeMode = p[PrefsKeys.THEME_MODE] ?: "system"
+            val useDynamicColors = p[PrefsKeys.USE_DYNAMIC_COLORS] != "false"
+
+            // DND Permission prüfen (ab Android 6.0)
+            val nm = context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as NotificationManager
+            val hasDndPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                nm.isNotificationPolicyAccessGranted
+            } else true
 
             _state.update {
                 it.copy(
@@ -121,7 +159,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     templates    = templatesList,
                     oneTimeTemplate = oneTime,
                     isLoggedIn   = false,
-                    liveNotificationEnabled = liveEnabled
+                    liveNotificationEnabled = liveEnabled,
+                    wasLiveNotificationEnabledBeforeDisable = wasLiveEnabledBeforeDisable,
+                    autoDndEnabled = autoDndEnabled,
+                    autoVolumeEnabled = autoVolumeEnabled,
+                    autoVolumeRing = autoVolumeRing,
+                    autoVolumeNotification = autoVolumeNotification,
+                    autoVolumeMedia = autoVolumeMedia,
+                    dndPauseBehavior = dndPauseBehavior,
+                    autoDndNotify = autoDndNotify,
+                    hasDndPermission = hasDndPermission,
+                    themeMode = themeMode,
+                    useDynamicColors = useDynamicColors
                 )
             }
 
@@ -266,6 +315,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val entries = ttResult.data
                 Log.d("MainViewModel", "Stundenplan geladen: ${entries.size} Einträge")
                 _state.update { it.copy(isLoading = false, timetable = entries, error = null) }
+                cacheTimetable(entries)
                 updateAlarmInfo(entries)
                 scheduleAlarm(_state.value)
             }
@@ -289,9 +339,66 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun updateAlarmSettings(enabled: Boolean, minutesBefore: Int) {
         viewModelScope.launch {
             prefs.saveAlarmSettings(enabled, minutesBefore)
-            _state.update {
-                it.copy(alarmEnabled = enabled, alarmMinutes = minutesBefore)
+            val currentState = _state.value
+
+            // Wenn Wecker aktiviert wird, vorherige Einstellungen wiederherstellen
+            if (enabled && !currentState.alarmEnabled) {
+                // Custom Alarms wiederherstellen
+                val restoredCustomAlarms = currentState.customAlarms.map { alarm ->
+                    if (alarm.wasEnabledBeforeDisable != null) {
+                        alarm.copy(isEnabled = alarm.wasEnabledBeforeDisable, wasEnabledBeforeDisable = null)
+                    } else {
+                        alarm
+                    }
+                }
+
+                // Live Notification wiederherstellen
+                val restoredLiveNotification = currentState.wasLiveNotificationEnabledBeforeDisable
+
+                _state.update {
+                    it.copy(
+                        alarmEnabled = enabled,
+                        alarmMinutes = minutesBefore,
+                        customAlarms = restoredCustomAlarms,
+                        liveNotificationEnabled = restoredLiveNotification,
+                        wasLiveNotificationEnabledBeforeDisable = false
+                    )
+                }
+
+                prefs.saveCustomAlarms(restoredCustomAlarms)
+                prefs.saveWasLiveNotificationEnabledBeforeDisable(false)
+                if (restoredLiveNotification) {
+                    context.dataStore.edit { it[stringPreferencesKey("live_notification_enabled")] = "true" }
+                    bea.l8tenever.com.worker.LiveStundeWorker.schedule(context, true)
+                }
             }
+            // Wenn Wecker deaktiviert wird, aktuelle Einstellungen speichern
+            else if (!enabled && currentState.alarmEnabled) {
+                // Status vor Deaktivierung speichern
+                val savedCustomAlarms = currentState.customAlarms.map { alarm ->
+                    alarm.copy(wasEnabledBeforeDisable = alarm.isEnabled, isEnabled = false)
+                }
+
+                _state.update {
+                    it.copy(
+                        alarmEnabled = enabled,
+                        alarmMinutes = minutesBefore,
+                        customAlarms = savedCustomAlarms,
+                        wasLiveNotificationEnabledBeforeDisable = currentState.liveNotificationEnabled,
+                        liveNotificationEnabled = false
+                    )
+                }
+
+                prefs.saveCustomAlarms(savedCustomAlarms)
+                prefs.saveWasLiveNotificationEnabledBeforeDisable(currentState.liveNotificationEnabled)
+                context.dataStore.edit { it[stringPreferencesKey("live_notification_enabled")] = "false" }
+                bea.l8tenever.com.worker.LiveStundeWorker.schedule(context, false)
+            } else {
+                _state.update {
+                    it.copy(alarmEnabled = enabled, alarmMinutes = minutesBefore)
+                }
+            }
+
             scheduleAlarm(_state.value)
             updateAlarmInfo(_state.value.timetable)
         }
@@ -302,6 +409,80 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             context.dataStore.edit { it[stringPreferencesKey("live_notification_enabled")] = if (enabled) "true" else "false" }
             _state.update { it.copy(liveNotificationEnabled = enabled) }
             bea.l8tenever.com.worker.LiveStundeWorker.schedule(context, enabled)
+        }
+    }
+
+    // ----------------------------
+    // Schulmodus-Einstellungen
+    // ----------------------------
+    fun toggleAutoDnd(enabled: Boolean) {
+        viewModelScope.launch {
+            val st = _state.value
+            prefs.saveSchoolModeSettings(
+                dndEnabled = enabled,
+                volumeEnabled = st.autoVolumeEnabled,
+                volumeRing = st.autoVolumeRing,
+                volumeNotification = st.autoVolumeNotification,
+                volumeMedia = st.autoVolumeMedia,
+                pauseBehavior = st.dndPauseBehavior
+            )
+            _state.update { it.copy(autoDndEnabled = enabled) }
+        }
+    }
+
+    fun toggleAutoVolume(enabled: Boolean) {
+        viewModelScope.launch {
+            val st = _state.value
+            prefs.saveSchoolModeSettings(
+                dndEnabled = st.autoDndEnabled,
+                volumeEnabled = enabled,
+                volumeRing = st.autoVolumeRing,
+                volumeNotification = st.autoVolumeNotification,
+                volumeMedia = st.autoVolumeMedia,
+                pauseBehavior = st.dndPauseBehavior
+            )
+            _state.update { it.copy(autoVolumeEnabled = enabled) }
+        }
+    }
+
+    fun updateVolumeSettings(ring: Boolean? = null, notification: Boolean? = null, media: Boolean? = null) {
+        viewModelScope.launch {
+            val st = _state.value
+            val newRing = ring ?: st.autoVolumeRing
+            val newNotif = notification ?: st.autoVolumeNotification
+            val newMedia = media ?: st.autoVolumeMedia
+
+            prefs.saveSchoolModeSettings(
+                dndEnabled = st.autoDndEnabled,
+                volumeEnabled = st.autoVolumeEnabled,
+                volumeRing = newRing,
+                volumeNotification = newNotif,
+                volumeMedia = newMedia,
+                pauseBehavior = st.dndPauseBehavior
+            )
+            _state.update { it.copy(autoVolumeRing = newRing, autoVolumeNotification = newNotif, autoVolumeMedia = newMedia) }
+        }
+    }
+
+    fun updatePauseBehavior(behavior: String) {
+        viewModelScope.launch {
+            val st = _state.value
+            prefs.saveSchoolModeSettings(
+                dndEnabled = st.autoDndEnabled,
+                volumeEnabled = st.autoVolumeEnabled,
+                volumeRing = st.autoVolumeRing,
+                volumeNotification = st.autoVolumeNotification,
+                volumeMedia = st.autoVolumeMedia,
+                pauseBehavior = behavior
+            )
+            _state.update { it.copy(dndPauseBehavior = behavior) }
+        }
+    }
+
+    fun toggleAutoDndNotify(enabled: Boolean) {
+        viewModelScope.launch {
+            prefs.saveAutoDndNotify(enabled)
+            _state.update { it.copy(autoDndNotify = enabled) }
         }
     }
 
@@ -328,8 +509,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ----------------------------
     // Zusatzwecker verwalten
     // ----------------------------
-    fun addCustomAlarm(name: String, minutesBefore: Int) {
-        val newAlarm = CustomAlarm(name = name, minutesBefore = minutesBefore)
+    fun addCustomAlarm(name: String, minutesBefore: Int, showWeather: Boolean = false) {
+        val newAlarm = CustomAlarm(name = name, minutesBefore = minutesBefore, showWeather = showWeather)
         val updated = _state.value.customAlarms + newAlarm
         updateCustomAlarms(updated)
     }
@@ -559,5 +740,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         return result
+    }
+    fun updateThemeSettings(mode: String, dynamicColors: Boolean) {
+        viewModelScope.launch {
+            prefs.saveThemeSettings(mode, dynamicColors)
+            _state.update { it.copy(themeMode = mode, useDynamicColors = dynamicColors) }
+        }
+    }
+
+    private fun cacheTimetable(entries: List<TimetableEntry>) {
+        viewModelScope.launch {
+            val json = gson.toJson(entries)
+            context.dataStore.edit { it[stringPreferencesKey("cached_timetable")] = json }
+            NextLessonWidget().updateAll(context)
+            LessonCountdownWidget().updateAll(context)
+            TimetableListWidget().updateAll(context)
+        }
     }
 }

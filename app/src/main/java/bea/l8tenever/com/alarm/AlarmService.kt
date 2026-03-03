@@ -41,10 +41,11 @@ class AlarmService : Service() {
         val subject = intent?.getStringExtra("lesson_subject") ?: "Unterricht"
         val time    = intent?.getStringExtra("lesson_time")    ?: ""
         val title   = intent?.getStringExtra("alarm_title")    ?: "⏰ Zeit aufzustehen!"
+        val showWeather = intent?.getBooleanExtra("show_weather", false) ?: false
 
-        Log.d("AlarmService", "Alarm gestartet: $title / $subject um $time")
+        Log.d("AlarmService", "Alarm gestartet: $title / $subject um $time (Wetter: $showWeather)")
 
-        val notification = buildNotification(subject, time, title)
+        val notification = buildNotification(subject, time, title, showWeather)
         startForeground(NOTIFICATION_ID, notification)
 
         playAlarmSound()
@@ -93,12 +94,13 @@ class AlarmService : Service() {
         }
     }
 
-    private fun buildNotification(subject: String, time: String, title: String): Notification {
+    private fun buildNotification(subject: String, time: String, title: String, showWeather: Boolean): Notification {
         // Fullscreen Intent: Öffnet die AlarmActivity über dem Sperrbildschirm
         val fullScreenIntent = Intent(this, AlarmActivity::class.java).apply {
             putExtra("lesson_subject", subject)
             putExtra("lesson_time", time)
             putExtra("alarm_title", title)
+            putExtra("show_weather", showWeather)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
         val pendingFullScreenIntent = PendingIntent.getActivity(

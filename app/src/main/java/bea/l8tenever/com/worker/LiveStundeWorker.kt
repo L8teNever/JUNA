@@ -13,6 +13,7 @@ import androidx.work.*
 import bea.l8tenever.com.MainActivity
 import bea.l8tenever.com.R
 import bea.l8tenever.com.data.*
+import bea.l8tenever.com.device.DeviceStateManager
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.first
@@ -157,6 +158,48 @@ class LiveStundeWorker(
             if (!alreadyDismissedToday) {
                 showNotification("Schule aus! 🎉", "Alle Stunden für heute sind beendet.", isDismissible = true)
             }
+        }
+
+        // === SCHULMODUS-STEUERUNG ===
+        try {
+            val userPrefs = UserPreferences(applicationContext)
+            val dndEnabled = userPrefs.autoDndEnabled.first()
+            val volumeEnabled = userPrefs.autoVolumeEnabled.first()
+
+            if (dndEnabled || volumeEnabled) {
+                // Bestimme aktuellen Zustand
+                val inLesson = current != null
+                val inPause = !inLesson && next != null && todayEntries.isNotEmpty()
+                val afterSchool = next == null && todayEntries.isNotEmpty()
+
+                when {
+                    inLesson -> {
+                        // Gerade Unterricht -> Schulmodus aktivieren
+                        if (!DeviceStateManager.isInSchoolMode(applicationContext)) {
+                            Log.d(TAG, "Schulmodus aktiviert (Unterricht begonnen)")
+                            DeviceStateManager.saveCurrentState(applicationContext)
+                            DeviceStateManager.activateSchoolMode(applicationContext, userPrefs)
+                        }
+                    }
+                    inPause -> {
+                        // Pause -> Verhalten gemäß Einstellung
+                        val pauseBehavior = userPrefs.dndPauseBehavior.first()
+                        if (pauseBehavior == "deactivate" && DeviceStateManager.isInSchoolMode(applicationContext)) {
+                            Log.d(TAG, "Schulmodus deaktiviert (Pause)")
+                            DeviceStateManager.restoreState(applicationContext)
+                        }
+                    }
+                    afterSchool -> {
+                        // Schule aus -> Alles wiederherstellen
+                        if (DeviceStateManager.isInSchoolMode(applicationContext)) {
+                            Log.d(TAG, "Schulmodus deaktiviert (Schule aus)")
+                            DeviceStateManager.restoreState(applicationContext)
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Fehler bei Schulmodus-Steuerung", e)
         }
 
         return Result.success()

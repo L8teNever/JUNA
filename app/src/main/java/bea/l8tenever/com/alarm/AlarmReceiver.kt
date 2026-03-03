@@ -18,12 +18,14 @@ class AlarmReceiver : BroadcastReceiver() {
         val time    = intent.getStringExtra("lesson_time")    ?: ""
         val date    = intent.getStringExtra("lesson_date")    ?: ""
         val title   = intent.getStringExtra("alarm_title")    ?: "⏰ Zeit aufzustehen!"
+        val showWeather = intent.getBooleanExtra("show_weather", false)
 
         val serviceIntent = Intent(context, AlarmService::class.java).apply {
             putExtra("lesson_subject", subject)
             putExtra("lesson_time", time)
             putExtra("lesson_date", date)
             putExtra("alarm_title", title)
+            putExtra("show_weather", showWeather)
         }
 
         context.startForegroundService(serviceIntent)
