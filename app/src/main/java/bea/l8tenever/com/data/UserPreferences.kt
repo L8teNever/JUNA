@@ -25,6 +25,8 @@ object PrefsKeys {
     val ALARM_ENABLED = stringPreferencesKey("alarm_enabled") // "true"/"false"
     val ALARM_DISABLED_DATES = stringSetPreferencesKey("alarm_disabled_dates") // yyyy-MM-dd
     val CUSTOM_ALARMS = stringPreferencesKey("custom_alarms")
+    val HABITS        = stringPreferencesKey("habits")
+    val HABIT_LOGS    = stringPreferencesKey("habit_logs")
     val TEMPLATES     = stringPreferencesKey("alarm_templates")    // JSON-Liste von AlarmTemplate
     val ONE_TIME_TEMPLATE = stringPreferencesKey("one_time_template") // JSON von OneTimeTemplate?
     val WAS_LIVE_NOTIFICATION_BEFORE_DISABLE = stringPreferencesKey("was_live_notification_before_disable") // "true"/"false"
@@ -89,6 +91,34 @@ class UserPreferences(private val context: Context) {
         } else {
             try {
                 val type = object : com.google.gson.reflect.TypeToken<List<CustomAlarm>>() {}.type
+                com.google.gson.Gson().fromJson(json, type) ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+    }
+
+    val habits: Flow<List<Habit>> = context.dataStore.data.map {
+        val json = it[PrefsKeys.HABITS]
+        if (json.isNullOrBlank()) {
+            emptyList()
+        } else {
+            try {
+                val type = object : com.google.gson.reflect.TypeToken<List<Habit>>() {}.type
+                com.google.gson.Gson().fromJson(json, type) ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+    }
+
+    val habitLogs: Flow<List<HabitLog>> = context.dataStore.data.map {
+        val json = it[PrefsKeys.HABIT_LOGS]
+        if (json.isNullOrBlank()) {
+            emptyList()
+        } else {
+            try {
+                val type = object : com.google.gson.reflect.TypeToken<List<HabitLog>>() {}.type
                 com.google.gson.Gson().fromJson(json, type) ?: emptyList()
             } catch (e: Exception) {
                 emptyList()
@@ -201,6 +231,18 @@ class UserPreferences(private val context: Context) {
                 }
             }
             prefs[PrefsKeys.CUSTOM_ALARMS] = com.google.gson.Gson().toJson(cleaned)
+        }
+    }
+
+    suspend fun saveHabits(habitsList: List<Habit>) {
+        context.dataStore.edit { prefs ->
+            prefs[PrefsKeys.HABITS] = com.google.gson.Gson().toJson(habitsList)
+        }
+    }
+
+    suspend fun saveHabitLogs(logs: List<HabitLog>) {
+        context.dataStore.edit { prefs ->
+            prefs[PrefsKeys.HABIT_LOGS] = com.google.gson.Gson().toJson(logs)
         }
     }
 

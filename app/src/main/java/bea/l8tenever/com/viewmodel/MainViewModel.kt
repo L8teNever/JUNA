@@ -61,13 +61,22 @@ data class AppUiState(
     val autoDndNotify: Boolean = true,
     val hasDndPermission: Boolean = false,
     val themeMode: String = "system", // system, light, dark
-    val useDynamicColors: Boolean = true
+    val useDynamicColors: Boolean = true,
+    // Habits
+    val habits: List<Habit> = emptyList(),
+    val habitLogs: List<HabitLog> = emptyList(),
+    val navigateToHabits: Boolean = false,
+    val habitToast: String? = null,
+    val isTransparentMode: Boolean = false
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(AppUiState())
     val state: StateFlow<AppUiState> = _state.asStateFlow()
+
+    private var isInitialized = false
+    private var pendingNfcAction: Pair<String, String>? = null
 
     private val prefs = UserPreferences(application)
     private val repo  = UntisRepository()
@@ -109,6 +118,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 try {
                     val type = object : TypeToken<List<AlarmTemplate>>() {}.type
                     gson.fromJson(templatesJson, type) ?: emptyList()
+                } catch (e: Exception) { emptyList() }
+            }
+
+            // Habits laden
+            val habitsJson = p[PrefsKeys.HABITS]
+            val habitsList: List<Habit> = if (habitsJson.isNullOrBlank()) {
+                emptyList()
+            } else {
+                try {
+                    val type = object : TypeToken<List<Habit>>() {}.type
+                    gson.fromJson(habitsJson, type) ?: emptyList()
+                } catch (e: Exception) { emptyList() }
+            }
+
+            // HabitLogs laden
+            val habitLogsJson = p[PrefsKeys.HABIT_LOGS]
+            val habitLogsList: List<HabitLog> = if (habitLogsJson.isNullOrBlank()) {
+                emptyList()
+            } else {
+                try {
+                    val type = object : TypeToken<List<HabitLog>>() {}.type
+                    gson.fromJson(habitLogsJson, type) ?: emptyList()
                 } catch (e: Exception) { emptyList() }
             }
 
@@ -186,8 +217,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     autoDndNotify = autoDndNotify,
                     hasDndPermission = hasDndPermission,
                     themeMode = themeMode,
-                    useDynamicColors = useDynamicColors
+                    useDynamicColors = useDynamicColors,
+                    habits = habitsList,
+                    habitLogs = habitLogsList
                 )
+            }
+
+            isInitialized = true
+            pendingNfcAction?.let {
+                pendingNfcAction = null
+                handleNfcAction(it.first, it.second)
             }
 
             // Gecachten Stundenplan sofort anzeigen (während Reload läuft)
@@ -796,6 +835,109 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             NextLessonWidget().updateAll(context)
             LessonCountdownWidget().updateAll(context)
             TimetableListWidget().updateAll(context)
+        }
+    }
+
+    // ----------------------------
+    // Habits (Aufgaben/Routinen) verwalten
+    // ----------------------------
+    fun addHabit(habit: Habit) {
+        val updated = _state.value.habits + habit
+        viewModelScope.launch {
+            prefs.saveHabits(updated)
+            _state.update { it.copy(habits = updated) }
+        }
+    }
+
+    fun removeHabit(id: String) {
+        val updated = _state.value.habits.filter { it.id != id }
+        viewModelScope.launch {
+            prefs.saveHabits(updated)
+            _state.update { it.copy(habits = updated) }
+            
+            // Logs for this habit can also be removed if desired:
+            val updatedLogs = _state.value.habitLogs.filter { it.habitId != id }
+            prefs.saveHabitLogs(updatedLogs)
+            _state.update { it.copy(habitLogs = updatedLogs) }
+        }
+    }
+
+    fun logHabitCompleted(habitId: String, date: LocalDate, timesToLog: Int = 1) {
+        viewModelScope.launch {
+            val dateStr = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+            val logs = _state.value.habitLogs.toMutableList()
+            val existingIndex = logs.indexOfFirst { it.habitId == habitId && it.date == dateStr }
+            
+            if (existingIndex >= 0) {
+                val currentCount = logs[existingIndex].completedCount
+                logs[existingIndex] = logs[existingIndex].copy(completedCount = currentCount + timesToLog)
+            } else {
+                logs.add(HabitLog(habitId = habitId, date = dateStr, completedCount = timesToLog))
+            }
+            
+            prefs.saveHabitLogs(logs)
+            _state.update { it.copy(habitLogs = logs) }
+        }
+    }
+
+    fun handleNfcAction(habitId: String, action: String) {
+        if (!isInitialized) {
+            pendingNfcAction = Pair(habitId, action)
+            return
+        }
+        val today = LocalDate.now()
+        val habit = _state.value.habits.find { it.id == habitId } ?: return
+        
+        val isTransparent = action == "increment" || action == "complete"
+        _state.update { it.copy(isTransparentMode = isTransparent) }
+
+        when (action) {
+            "open" -> {
+                _state.update { it.copy(navigateToHabits = true) }
+            }
+            "increment" -> {
+                logHabitCompleted(habitId, today, 1)
+                _state.update { it.copy(habitToast = "${habit.name} +1") }
+            }
+            "complete" -> {
+                // If the habit needs 'timesPerDay', log enough so it's fully complete
+                val dateStr = today.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+                val log = _state.value.habitLogs.find { it.habitId == habitId && it.date == dateStr }
+                val currentCount = log?.completedCount ?: 0
+                val missing = habit.timesPerDay - currentCount
+                if (missing > 0) {
+                    logHabitCompleted(habitId, today, missing)
+                }
+                _state.update { it.copy(habitToast = "${habit.name} erledigt!") }
+            }
+        }
+    }
+
+    fun clearNavigateToHabits() {
+        _state.update { it.copy(navigateToHabits = false) }
+    }
+
+    fun clearHabitToast() {
+        _state.update { it.copy(habitToast = null, isTransparentMode = false) }
+    }
+
+    fun removeHabitLog(habitId: String, date: LocalDate) {
+        viewModelScope.launch {
+            val dateStr = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+            val logs = _state.value.habitLogs.toMutableList()
+            val existingIndex = logs.indexOfFirst { it.habitId == habitId && it.date == dateStr }
+            
+            if (existingIndex >= 0) {
+                val currentCount = logs[existingIndex].completedCount
+                if (currentCount > 1) {
+                    logs[existingIndex] = logs[existingIndex].copy(completedCount = currentCount - 1)
+                } else {
+                    logs.removeAt(existingIndex)
+                }
+            }
+            
+            prefs.saveHabitLogs(logs)
+            _state.update { it.copy(habitLogs = logs) }
         }
     }
 }

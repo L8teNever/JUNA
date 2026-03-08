@@ -7,4 +7,11 @@
         <item name="android:navigationBarColor">#FF0F0F1A</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
+
+    <style name="Theme.BEA.Transparent" parent="Theme.BEA">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
 </resources>

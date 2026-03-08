@@ -35,7 +35,8 @@ import java.util.Locale
 fun DashboardScreen(
     viewModel: MainViewModel,
     onNavigateToTimetable: (LocalDate?) -> Unit,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    onNavigateToHabits: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
     val now = remember { mutableStateOf(LocalDateTime.now()) }
@@ -156,20 +157,38 @@ fun DashboardScreen(
                     }
                 }
 
-                // Settings Button
-                IconButton(
-                    onClick = onNavigateToSettings,
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF1C1A20))
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Settings,
-                        contentDescription = "Einstellungen",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Habits Button
+                    IconButton(
+                        onClick = onNavigateToHabits,
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1C1A20))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Checklist,
+                            contentDescription = "Aufgaben & Routinen",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    
+                    // Settings Button
+                    IconButton(
+                        onClick = onNavigateToSettings,
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1C1A20))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Settings,
+                            contentDescription = "Einstellungen",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
             }
             
